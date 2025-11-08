@@ -11,6 +11,7 @@ import GuiScene from 'gui/GuiScene';
 import GuiSculpting from 'gui/GuiSculpting';
 import GuiStates from 'gui/GuiStates';
 import GuiTablet from 'gui/GuiTablet';
+import GuiAI from 'gui/GuiAI';
 import ShaderContour from 'render/shaders/ShaderContour';
 
 import Export from 'files/Export';
@@ -34,6 +35,7 @@ class Gui {
     this._ctrlSculpting = null;
     this._ctrlTopology = null;
     this._ctrlRendering = null;
+    this._ctrlAI = null;
 
     this._ctrlNotification = null;
 
@@ -65,6 +67,7 @@ class Gui {
     ctrls[idc++] = this._ctrlTablet = new GuiTablet(this._topbar, this);
     ctrls[idc++] = this._ctrlConfig = new GuiConfig(this._topbar, this);
     ctrls[idc++] = this._ctrlMesh = new GuiMesh(this._topbar, this);
+    ctrls[idc++] = this._ctrlAI = new GuiAI(this._topbar, this);
 
     // Initialize the sidebar
     this._sidebar = this._guiMain.addRightSidebar();
@@ -177,6 +180,7 @@ class Gui {
     this._ctrlTopology.updateMesh();
     this._ctrlSculpting.updateMesh();
     this._ctrlScene.updateMesh();
+    this._ctrlAI.updateMesh();
     this.updateMeshInfo();
   }
 
