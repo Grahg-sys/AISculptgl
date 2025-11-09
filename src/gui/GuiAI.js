@@ -23,6 +23,17 @@ class GuiAI {
     this._ctrlAIModeling = null; // 顶部菜单按钮
     this._onImageUploadedHandler = null;
     
+    // 配置选项
+    this._config = {
+      apiBaseUrl: 'http://localhost:8002', // Tripo3D FastAPI服务地址
+      maxRetries: 60, // 最大重试次数
+      retryInterval: 5000, // 重试间隔（毫秒）
+      timeout: 300000 // 请求超时时间（5分钟）
+    };
+    
+    console.log('🤖 AI模型生成模块已初始化');
+    console.log(`📍 API服务地址: ${this._config.apiBaseUrl}`);
+    
     this.init(guiParent);
   }
 
@@ -79,6 +90,46 @@ class GuiAI {
       font-family: 'Open Sans', sans-serif;
     `;
     
+    // 创建测试按钮
+    const testButton = document.createElement('button');
+    testButton.innerHTML = '🧪';
+    testButton.style.cssText = `
+      position: absolute;
+      top: 15px;
+      right: 80px;
+      background: none;
+      border: none;
+      color: white;
+      font-size: 18px;
+      cursor: pointer;
+      padding: 5px;
+      transition: color 0.3s ease;
+    `;
+    testButton.onmouseover = () => testButton.style.color = '#2ecc71';
+    testButton.onmouseout = () => testButton.style.color = 'white';
+    testButton.onclick = () => this.quickTestBackend();
+    testButton.title = '测试后端连接';
+    
+    // 创建配置按钮
+    const configButton = document.createElement('button');
+    configButton.innerHTML = '⚙️';
+    configButton.style.cssText = `
+      position: absolute;
+      top: 15px;
+      right: 50px;
+      background: none;
+      border: none;
+      color: white;
+      font-size: 18px;
+      cursor: pointer;
+      padding: 5px;
+      transition: color 0.3s ease;
+    `;
+    configButton.onmouseover = () => configButton.style.color = '#3498db';
+    configButton.onmouseout = () => configButton.style.color = 'white';
+    configButton.onclick = () => this.showConfigDialog();
+    configButton.title = 'API配置';
+    
     // 创建关闭按钮
     const closeButton = document.createElement('button');
     closeButton.innerHTML = '×';
@@ -122,6 +173,7 @@ class GuiAI {
     
     // 组装模态窗口
     this._modalContent.appendChild(closeButton);
+    this._modalContent.appendChild(configButton);
     this._modalContent.appendChild(title);
     this._modalContent.appendChild(contentArea);
     this._modalOverlay.appendChild(this._modalContent);
@@ -190,6 +242,32 @@ class GuiAI {
   }
 
   renderUploadStep(container) {
+    const content = document.createElement('div');
+    content.style.cssText = `
+      width: 100%;
+      text-align: center;
+    `;
+    
+    // 服务状态显示
+    const serviceInfo = document.createElement('div');
+    serviceInfo.style.cssText = `
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 5px;
+      padding: 10px;
+      margin: 0 20px 20px 20px;
+      font-size: 12px;
+      color: #bdc3c7;
+    `;
+    serviceInfo.innerHTML = `
+      <div style="margin-bottom: 5px;">
+        <strong>服务地址:</strong> ${this._config.apiBaseUrl}
+      </div>
+      <div style="color: #f39c12;">
+        请确保Tripo3D FastAPI服务正在运行
+      </div>
+    `;
+    content.appendChild(serviceInfo);
+    
     const uploadArea = document.createElement('div');
     uploadArea.style.cssText = `
       width: 100%;
@@ -244,7 +322,10 @@ class GuiAI {
     
     uploadArea.onclick = () => this.triggerFileUpload();
     
-    container.appendChild(uploadArea);
+    content.appendChild(serviceInfo);
+    content.appendChild(uploadArea);
+    
+    container.appendChild(content);
   }
 
   triggerFileUpload() {
@@ -447,31 +528,109 @@ class GuiAI {
     `;
     
     const progressBar = document.createElement('div');
+    progressBar.className = 'ai-progress-bar';
     progressBar.style.cssText = `
       height: 100%;
       background: linear-gradient(90deg, #3498db, #2980b9);
       border-radius: 3px;
       width: 0%;
-      animation: progress 3s ease-in-out infinite;
+      transition: width 0.3s ease;
     `;
     
-    // 添加进度条动画
-    const progressStyle = document.createElement('style');
-    progressStyle.textContent = `
-      @keyframes progress {
-        0% { width: 0%; }
-        50% { width: 70%; }
-        100% { width: 100%; }
-      }
+    // 进度文本
+    const progressText = document.createElement('div');
+    progressText.className = 'ai-progress-text';
+    progressText.style.cssText = `
+      color: #bdc3c7;
+      font-size: 12px;
+      margin-top: 10px;
+      text-align: center;
     `;
-    document.head.appendChild(progressStyle);
+    progressText.textContent = TR('aiGeneratingText');
     
     progressContainer.appendChild(progressBar);
     
     content.appendChild(loadingArea);
     content.appendChild(progressContainer);
+    content.appendChild(progressText);
+    
+    // 错误信息显示区域（初始隐藏）
+    const errorMessage = document.createElement('div');
+    errorMessage.className = 'ai-error-message';
+    errorMessage.style.cssText = `
+      color: #e74c3c;
+      font-size: 14px;
+      margin-top: 20px;
+      text-align: center;
+      display: none;
+      padding: 10px;
+      background: rgba(231, 76, 60, 0.1);
+      border-radius: 6px;
+      border: 1px solid rgba(231, 76, 60, 0.3);
+    `;
+    content.appendChild(errorMessage);
     
     container.appendChild(content);
+  }
+
+  async quickTestBackend() {
+    try {
+      // 显示测试状态
+      const testMessage = document.createElement('div');
+      testMessage.id = 'backend-test-message';
+      testMessage.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: rgba(52, 152, 219, 0.9);
+        color: white;
+        padding: 10px 15px;
+        border-radius: 5px;
+        z-index: 10000;
+        font-size: 14px;
+      `;
+      testMessage.textContent = '正在测试后端服务连接...';
+      document.body.appendChild(testMessage);
+      
+      const isHealthy = await this.checkBackendStatus();
+      
+      if (isHealthy) {
+        testMessage.style.background = 'rgba(39, 174, 96, 0.9)';
+        testMessage.textContent = '✅ 后端服务连接正常！';
+      } else {
+        testMessage.style.background = 'rgba(231, 76, 60, 0.9)';
+        testMessage.textContent = '❌ 无法连接到后端服务，请检查服务是否启动';
+      }
+      
+      // 3秒后移除消息
+      setTimeout(() => {
+        if (document.getElementById('backend-test-message')) {
+          document.body.removeChild(testMessage);
+        }
+      }, 3000);
+      
+    } catch (error) {
+      console.error('后端测试失败:', error);
+      alert('测试失败: ' + error.message);
+    }
+  }
+
+  showConfigDialog() {
+    // 创建简单的配置对话框
+    const apiUrl = prompt('请输入Tripo3D API服务地址:', this._config.apiBaseUrl);
+    if (apiUrl && apiUrl.trim()) {
+      this._config.apiBaseUrl = apiUrl.trim();
+      console.log(`API地址已更新为: ${this._config.apiBaseUrl}`);
+      
+      // 测试新的API地址
+      this.checkBackendStatus().then(isReady => {
+        if (isReady) {
+          alert('API地址更新成功，服务连接正常！');
+        } else {
+          alert('API地址已更新，但无法连接到服务，请检查地址是否正确');
+        }
+      });
+    }
   }
 
   renderCompletedStep(container) {
@@ -519,6 +678,25 @@ class GuiAI {
       flex-wrap: wrap;
     `;
     
+    // 加载到场景按钮
+    const loadToSceneBtn = document.createElement('button');
+    loadToSceneBtn.textContent = '加载到场景';
+    loadToSceneBtn.style.cssText = `
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #9b59b6, #8e44ad);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      margin-right: 10px;
+    `;
+    loadToSceneBtn.onmouseover = () => loadToSceneBtn.style.transform = 'translateY(-2px)';
+    loadToSceneBtn.onmouseout = () => loadToSceneBtn.style.transform = 'translateY(0)';
+    loadToSceneBtn.onclick = () => this.loadModelToScene();
+    
     // 下载模型按钮
     const downloadBtn = document.createElement('button');
     downloadBtn.textContent = TR('aiDownloadModel');
@@ -532,6 +710,7 @@ class GuiAI {
       font-size: 14px;
       font-weight: 600;
       transition: all 0.3s ease;
+      margin-right: 10px;
     `;
     downloadBtn.onmouseover = () => downloadBtn.style.transform = 'translateY(-2px)';
     downloadBtn.onmouseout = () => downloadBtn.style.transform = 'translateY(0)';
@@ -558,6 +737,7 @@ class GuiAI {
       this.updateModalContent();
     };
     
+    buttonArea.appendChild(loadToSceneBtn);
     buttonArea.appendChild(downloadBtn);
     buttonArea.appendChild(regenerateBtn);
     
@@ -664,42 +844,21 @@ class GuiAI {
     container.appendChild(content);
   }
 
-  async generateModel() {
-    if (!this._uploadedImage) {
-      alert(TR('aiNoImageUploaded'));
-      return;
-    }
-    
-    this._currentStep = 'generating';
-    this._isProcessing = true;
-    this.updateModalContent();
-    
+  async checkBackendStatus() {
     try {
-      // 创建FormData并添加图片
-      const formData = new FormData();
-      formData.append('image', this._uploadedImage);
-      
-      // TODO: 这里填入你的后端API接口地址
-      const response = await fetch('/api/generate-model', {
-        method: 'POST',
-        body: formData
+      const response = await fetch(`${this._config.apiBaseUrl}/health`, {
+        method: 'GET',
+        timeout: 5000
       });
       
       if (response.ok) {
-        // 获取生成的OBJ文件
-        const objData = await response.blob();
-        this._generatedModel = objData;
-        this._currentStep = 'completed';
-      } else {
-        throw new Error('Backend API failed');
+        const data = await response.json();
+        return data.status === 'healthy';
       }
-      
+      return false;
     } catch (error) {
-      console.error('AI model generation error:', error);
-      this._currentStep = 'error';
-    } finally {
-      this._isProcessing = false;
-      this.updateModalContent();
+      console.warn('后端服务检查失败:', error);
+      return false;
     }
   }
 
@@ -709,50 +868,177 @@ class GuiAI {
       return;
     }
     
+    // 检查后端服务是否可用
+    const isBackendReady = await this.checkBackendStatus();
+    if (!isBackendReady) {
+      alert(`AI服务未启动或不可用，请确保Tripo3D FastAPI服务正在运行（${this._config.apiBaseUrl}）`);
+      return;
+    }
+    
+    this._currentStep = 'generating';
     this._isProcessing = true;
-    this._currentStep = 2;
-    this.updateInterface();
-    this._ctrlStatus.setText(TR('aiStatusGenerating'));
-    this.showProgress(true);
+    this.updateModalContent();
     
     try {
-      // 创建FormData并添加图片
+      // 步骤1: 上传图像并创建任务
+      console.log('🚀 开始AI模型生成流程...');
       const formData = new FormData();
-      formData.append('image', this._uploadedImage);
+      formData.append('file', this._uploadedImage);
+      formData.append('model_type', 'realistic'); // 使用写实风格
+      formData.append('texture', 'true');
+      formData.append('face_limit', '20000');
       
-      // 先尝试调用后端API
-      try {
-        const response = await fetch('/api/generate-model', {
-          method: 'POST',
-          body: formData
-        });
+      // 调用Tripo3D FastAPI服务
+      console.log(`📡 请求URL: ${this._config.apiBaseUrl}/api/v1/image-to-3d`);
+      const uploadResponse = await fetch(`${this._config.apiBaseUrl}/api/v1/image-to-3d`, {
+        method: 'POST',
+        body: formData,
+        timeout: 60000 // 60秒超时
+      });
+      
+      console.log(`📡 响应状态: ${uploadResponse.status} ${uploadResponse.statusText}`);
+      if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text();
+        console.error(`❌ 上传失败详情: ${errorText}`);
+        throw new Error(`上传失败 (${uploadResponse.status}): ${errorText}`);
+      }
+      
+      const uploadResult = await uploadResponse.json();
+      const taskId = uploadResult.task_id;
+      console.log(`✅ 任务创建成功: ${taskId}`);
+      
+      // 步骤2: 轮询任务状态
+      console.log('⏳ 等待任务完成...');
+      let taskStatus;
+      let retryCount = 0;
+      
+      while (retryCount < this._config.maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, this._config.retryInterval));
         
-        if (response.ok) {
-          // 获取生成的OBJ文件
-          const objData = await response.blob();
-          this._generatedModel = objData;
-          this._currentStep = 3;
-          this._ctrlStatus.setText(TR('aiStatusComplete'));
-        } else {
-          throw new Error('Backend API failed');
+        const statusResponse = await fetch(`${this._config.apiBaseUrl}/api/v1/task/${taskId}`);
+        if (!statusResponse.ok) {
+          console.warn(`状态查询失败: ${statusResponse.status} ${statusResponse.statusText}`);
+          const errorText = await statusResponse.text();
+          console.warn(`错误详情: ${errorText}`);
+          continue;
         }
-      } catch (apiError) {
-        console.warn('后端API调用失败，使用前端模拟:', apiError);
-        // 前端模拟：创建一个简单的OBJ文件
-        this._generatedModel = this.createMockOBJFile();
-        this._currentStep = 3;
-        this._ctrlStatus.setText(TR('aiStatusComplete'));
-        alert('AI模型生成完成！（当前为演示模式）');
+        
+        taskStatus = await statusResponse.json();
+        console.log(`📊 任务状态: ${taskStatus.status}, 进度: ${taskStatus.progress}%`);
+        
+        // 更新UI显示进度
+        this.updateProgress(taskStatus.progress);
+        
+        if (taskStatus.status === 'success') {
+          console.log('✅ 任务完成！');
+          break;
+        } else if (taskStatus.status === 'failed') {
+          throw new Error(`任务失败: ${taskStatus.error_message || '未知错误'}`);
+        }
+        
+        retryCount++;
+      }
+      
+      if (retryCount >= this._config.maxRetries) {
+        throw new Error('任务超时，请稍后重试');
+      }
+      
+      // 步骤3: 下载模型
+      if (taskStatus.model_url) {
+        console.log('📥 下载3D模型...');
+        const downloadResponse = await fetch(`${this._config.apiBaseUrl}/api/v1/download/${taskId}`);
+        
+        if (!downloadResponse.ok) {
+          throw new Error(`模型下载失败: ${downloadResponse.statusText}`);
+        }
+        
+        const modelBlob = await downloadResponse.blob();
+        this._generatedModel = modelBlob;
+        this._currentStep = 'completed';
+        console.log('✅ 模型下载完成！');
+      } else {
+        throw new Error('无法获取模型下载链接');
       }
       
     } catch (error) {
-      console.error('AI model generation error:', error);
-      this._ctrlStatus.setText(TR('aiStatusError'));
-      alert(TR('aiGenerationError'));
+      console.error('AI模型生成错误:', error);
+      console.error('错误堆栈:', error.stack);
+      this._currentStep = 'error';
+      // 显示更详细的错误信息
+      const errorMessage = error.message || '模型生成失败，请重试';
+      this.showError(errorMessage);
     } finally {
       this._isProcessing = false;
-      this.showProgress(false);
-      this.updateInterface();
+      this.updateModalContent();
+    }
+  }
+
+  updateProgress(progress) {
+    // 更新进度条显示
+    const progressBar = this._modalContent.querySelector('.ai-progress-bar');
+    const progressText = this._modalContent.querySelector('.ai-progress-text');
+    
+    if (progressBar) {
+      progressBar.style.width = `${progress}%`;
+    }
+    
+    if (progressText) {
+      progressText.textContent = `${TR('aiGeneratingText')} ${progress}%`;
+    }
+  }
+
+  showError(message) {
+    // 在UI中显示错误信息
+    const errorContainer = this._modalContent.querySelector('.ai-error-message');
+    if (errorContainer) {
+      errorContainer.textContent = message;
+      errorContainer.style.display = 'block';
+    } else {
+      // 如果没有专门的错误容器，使用alert
+      alert(message);
+    }
+  }
+
+  async loadModelToScene() {
+    if (!this._generatedModel) {
+      alert(TR('aiNoModelGenerated'));
+      return;
+    }
+    
+    try {
+      console.log('🔄 将模型加载到场景中...');
+      
+      // 将Blob转换为ArrayBuffer
+      const arrayBuffer = await this._generatedModel.arrayBuffer();
+      
+      // 触发文件导入事件，让SculptGL处理GLB文件
+      // 这里需要调用SculptGL的文件导入功能
+      if (this._main.getImport) {
+        // 创建一个新的文件对象
+        const file = new File([this._generatedModel], 'ai-generated-model.glb', {
+          type: 'model/gltf-binary'
+        });
+        
+        // 调用导入功能
+        await this._main.getImport().importFile(file);
+        console.log('✅ 模型已成功加载到场景中');
+        
+        // 关闭模态窗口
+        this.closeModal();
+        
+        // 显示成功消息
+        alert('AI模型已成功加载到场景中！');
+      } else {
+        console.warn('无法直接加载到场景，请手动导入下载的模型文件');
+        // 如果无法直接加载，则提供下载
+        this.downloadModel();
+      }
+      
+    } catch (error) {
+      console.error('加载模型到场景失败:', error);
+      alert('模型加载失败，请尝试下载后手动导入');
+      // 如果加载失败，仍然提供下载选项
+      this.downloadModel();
     }
   }
 
@@ -766,13 +1052,13 @@ class GuiAI {
     const url = URL.createObjectURL(this._generatedModel);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'ai-generated-model.obj';
+    link.download = 'ai-generated-model.glb'; // 改为GLB格式，与Tripo3D输出一致
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     
-    this._ctrlStatus.setText(TR('aiStatusDownloaded'));
+    console.log('✅ 模型已下载');
   }
 
   // 清理资源
