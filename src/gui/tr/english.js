@@ -215,6 +215,8 @@ var TR = {
   remeshSmoothingMC: 'Relax topology',
 
   aiTitle: 'AI Modeling',
+  aiOpenModal: 'AI Modeling',
+  aiModalTitle: 'AI Intelligent Modeling',
   aiModelTitle: 'AI Model',
   aiModelType: 'Model Type',
   aiModelTextToMesh: 'Text to Mesh',
@@ -251,7 +253,19 @@ var TR = {
   aiInvalidImage: 'Please select a valid image file',
   aiNoImageUploaded: 'Please upload an image first',
   aiNoModelGenerated: 'No model generated yet',
-  aiGenerationError: 'Model generation failed, please try again'
+  aiGenerationError: 'Model generation failed, please try again',
+  
+  // New translations
+  aiUploadPrompt: 'Click or drag to upload image',
+  aiUploadHint: 'Supports JPG, PNG, GIF formats',
+  aiGeneratingText: 'Generating 3D Model...',
+  aiGeneratingSubtext: 'Please wait, AI is processing your image',
+  aiGenerationComplete: 'Model Generated Successfully!',
+  aiModelReady: 'Your 3D model is ready',
+  aiRegenerateModel: 'Regenerate',
+  aiErrorDescription: 'Please check your network connection or try again later',
+  aiRetry: 'Retry',
+  aiBackToUpload: 'Back to Upload'
 };
 
 export default TR;

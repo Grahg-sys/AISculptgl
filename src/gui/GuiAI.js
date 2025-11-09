@@ -9,64 +9,33 @@ class GuiAI {
     this._parent = guiParent;
     
     // AI建模工作流状态
-    this._currentStep = 0; // 0: 上传, 1: 生成中, 2: 完成
+    this._currentStep = 'idle'; // 'idle', 'uploaded', 'generating', 'completed', 'error'
     this._uploadedImage = null; // 上传的图片文件
     this._generatedModel = null; // 生成的模型数据
     this._isProcessing = false; // 是否正在处理
     
-    // 控件引用
-    this._step1Container = null;
-    this._step2Container = null;
-    this._step3Container = null;
-    this._ctrlUploadButton = null;
-    this._ctrlImagePreview = null;
-    this._ctrlGenerateModel = null;
-    this._ctrlDownloadModel = null;
-    this._ctrlStatus = null;
-    this._ctrlProgress = null;
-    this._onImageUploadedHandler = null;
+    // 模态窗口相关
+    this._modal = null;
+    this._modalOverlay = null;
+    this._modalContent = null;
     
-    // 图片预览相关
-    this._ctrlImageInfo = null;
+    // 控件引用
+    this._ctrlAIModeling = null; // 顶部菜单按钮
+    this._onImageUploadedHandler = null;
     
     this.init(guiParent);
   }
 
   init(guiParent) {
     try {
+      // 创建顶部菜单按钮，点击后打开模态窗口
       var menu = this._menu = guiParent.addMenu(TR('aiTitle'));
+      this._ctrlAIModeling = menu.addButton(TR('aiOpenModal'), this, 'openModal');
       
-      // 步骤1: 上传图片
-      this._step1Container = menu.addTitle(TR('aiUploadTitle'));
-      this._ctrlUploadButton = menu.addButton(TR('aiUploadImage'), this, 'uploadImage');
-      this._ctrlImagePreview = menu.addButton(TR('aiImagePreview'), this, 'previewImage');
-      this._ctrlImagePreview.setVisibility(false);
+      // 创建模态窗口（初始隐藏）
+      this.createModal();
       
-      // 使用文本控件显示图片信息（yagui框架兼容方式）
-      this._ctrlImageInfo = menu.addTitle(TR('aiImageInfo'));
-      this._ctrlImageInfo.setVisibility(false);
-      
-      // 添加测试用的文件输入控件（调试用）
-      this._ctrlTestUpload = menu.addButton('🧪 测试上传', this, 'testUpload');
-      
-      // 步骤2: 生成模型
-      this._step2Container = menu.addTitle(TR('aiGenerateTitle'));
-      this._ctrlGenerateModel = menu.addButton(TR('aiGenerateModel'), this, 'generateModel');
-      this._ctrlGenerateModel.setVisibility(false);
-      this._ctrlProgress = menu.addProgress(TR('aiProgress'));
-      this._ctrlProgress.setVisibility(false);
-      
-      // 步骤3: 下载模型
-      this._step3Container = menu.addTitle(TR('aiDownloadTitle'));
-      this._ctrlDownloadModel = menu.addButton(TR('aiDownloadModel'), this, 'downloadModel');
-      this._ctrlDownloadModel.setVisibility(false);
-      
-      // 状态信息
-      this._ctrlStatus = menu.addTitle(TR('aiStatus'));
-      this._ctrlStatus.setText(TR('aiStatusReady'));
-      
-      this.updateInterface();
-      this.addEvents();
+      console.log('AI建模模块初始化完成');
     } catch (error) {
       console.error('AI模块初始化失败:', error);
       // 确保即使AI模块出错也不影响整个应用
@@ -76,140 +45,662 @@ class GuiAI {
     }
   }
 
-  testUpload() {
-    console.log('🧪 测试上传功能开始');
+  createModal() {
+    // 创建模态窗口覆盖层
+    this._modalOverlay = document.createElement('div');
+    this._modalOverlay.className = 'ai-modal-overlay';
+    this._modalOverlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.7);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 10000;
+    `;
     
-    // 创建一个新的文件输入元素用于测试
-    const testInput = document.createElement('input');
-    testInput.type = 'file';
-    testInput.accept = 'image/*';
-    testInput.style.display = 'block';
-    testInput.style.position = 'fixed';
-    testInput.style.top = '50%';
-    testInput.style.left = '50%';
-    testInput.style.transform = 'translate(-50%, -50%)';
-    testInput.style.zIndex = '9999';
+    // 创建模态窗口内容
+    this._modalContent = document.createElement('div');
+    this._modalContent.className = 'ai-modal-content';
+    this._modalContent.style.cssText = `
+      background: linear-gradient(135deg, #2c3e50, #34495e);
+      border-radius: 12px;
+      padding: 30px;
+      width: 90%;
+      max-width: 600px;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      position: relative;
+      color: white;
+      font-family: 'Open Sans', sans-serif;
+    `;
     
-    document.body.appendChild(testInput);
+    // 创建关闭按钮
+    const closeButton = document.createElement('button');
+    closeButton.innerHTML = '×';
+    closeButton.style.cssText = `
+      position: absolute;
+      top: 15px;
+      right: 20px;
+      background: none;
+      border: none;
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
+      padding: 5px;
+      transition: color 0.3s ease;
+    `;
+    closeButton.onmouseover = () => closeButton.style.color = '#e74c3c';
+    closeButton.onmouseout = () => closeButton.style.color = 'white';
+    closeButton.onclick = () => this.closeModal();
     
-    testInput.addEventListener('change', (event) => {
-      console.log('🧪 测试文件选择事件触发');
+    // 创建标题
+    const title = document.createElement('h2');
+    title.textContent = TR('aiModalTitle');
+    title.style.cssText = `
+      margin: 0 0 20px 0;
+      text-align: center;
+      color: #3498db;
+      font-weight: 600;
+      font-size: 24px;
+    `;
+    
+    // 创建内容区域
+    const contentArea = document.createElement('div');
+    contentArea.className = 'ai-modal-body';
+    contentArea.style.cssText = `
+      min-height: 300px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    `;
+    
+    // 组装模态窗口
+    this._modalContent.appendChild(closeButton);
+    this._modalContent.appendChild(title);
+    this._modalContent.appendChild(contentArea);
+    this._modalOverlay.appendChild(this._modalContent);
+    document.body.appendChild(this._modalOverlay);
+    
+    // 点击覆盖层关闭模态窗口
+    this._modalOverlay.onclick = (e) => {
+      if (e.target === this._modalOverlay) {
+        this.closeModal();
+      }
+    };
+    
+    // 添加窗口大小变化监听
+    window.addEventListener('resize', this.handleResize.bind(this));
+    
+    // 初始化内容
+    this.updateModalContent();
+  }
+
+  handleResize() {
+    // 处理窗口大小变化
+    if (this._modalOverlay && this._modalOverlay.style.display === 'flex') {
+      // 可以在这里添加响应式调整逻辑
+      const maxWidth = window.innerWidth < 768 ? '95%' : '600px';
+      this._modalContent.style.maxWidth = maxWidth;
+    }
+  }
+
+  openModal() {
+    if (this._modalOverlay) {
+      this._modalOverlay.style.display = 'flex';
+      this.updateModalContent();
+    }
+  }
+
+  closeModal() {
+    if (this._modalOverlay) {
+      this._modalOverlay.style.display = 'none';
+      // 重置状态但不清除已上传的图片和生成的模型
+    }
+  }
+
+  updateModalContent() {
+    const contentArea = this._modalContent.querySelector('.ai-modal-body');
+    if (!contentArea) return;
+    
+    contentArea.innerHTML = '';
+    
+    switch (this._currentStep) {
+      case 'idle':
+        this.renderUploadStep(contentArea);
+        break;
+      case 'uploaded':
+        this.renderUploadedStep(contentArea);
+        break;
+      case 'generating':
+        this.renderGeneratingStep(contentArea);
+        break;
+      case 'completed':
+        this.renderCompletedStep(contentArea);
+        break;
+      case 'error':
+        this.renderErrorStep(contentArea);
+        break;
+    }
+  }
+
+  renderUploadStep(container) {
+    const uploadArea = document.createElement('div');
+    uploadArea.style.cssText = `
+      width: 100%;
+      height: 300px;
+      border: 3px dashed #3498db;
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      background: rgba(52, 152, 219, 0.1);
+      position: relative;
+      backdrop-filter: blur(10px);
+    `;
+    
+    uploadArea.onmouseover = () => {
+      uploadArea.style.background = 'rgba(52, 152, 219, 0.2)';
+      uploadArea.style.borderColor = '#2980b9';
+      uploadArea.style.transform = 'translateY(-2px)';
+      uploadArea.style.boxShadow = '0 10px 30px rgba(52, 152, 219, 0.2)';
+    };
+    
+    uploadArea.onmouseout = () => {
+      uploadArea.style.background = 'rgba(52, 152, 219, 0.1)';
+      uploadArea.style.borderColor = '#3498db';
+      uploadArea.style.transform = 'translateY(0)';
+      uploadArea.style.boxShadow = 'none';
+    };
+    
+    uploadArea.innerHTML = `
+      <div style="font-size: 48px; color: #3498db; margin-bottom: 20px; animation: float 3s ease-in-out infinite;">📷</div>
+      <div style="font-size: 18px; color: #3498db; margin-bottom: 10px; font-weight: 600;">
+        ${TR('aiUploadPrompt')}
+      </div>
+      <div style="font-size: 14px; color: #bdc3c7;">
+        ${TR('aiUploadHint')}
+      </div>
+    `;
+    
+    // 添加浮动动画
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes float {
+        0% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+        100% { transform: translateY(0px); }
+      }
+    `;
+    document.head.appendChild(style);
+    
+    uploadArea.onclick = () => this.triggerFileUpload();
+    
+    container.appendChild(uploadArea);
+  }
+
+  triggerFileUpload() {
+    // 创建文件输入元素
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.style.display = 'none';
+    
+    fileInput.onchange = (event) => {
       const file = event.target.files[0];
       if (file) {
-        console.log('🧪 测试文件已选择:', file.name);
-        this.onImageUploaded(file);
+        this.handleImageUpload(file);
       }
-      // 清理测试元素
-      document.body.removeChild(testInput);
-    });
+      // 清理
+      document.body.removeChild(fileInput);
+    };
     
-    // 触发测试文件选择
-    testInput.click();
-    console.log('🧪 测试文件选择对话框已触发');
+    document.body.appendChild(fileInput);
+    fileInput.click();
   }
 
-  uploadImage() {"instruction":"添加测试上传功能"}
-    try {
-      // 获取文件输入元素
-      const fileInput = document.getElementById('aiimageopen');
-      if (!fileInput) {
-        console.error('AI图片上传元素未找到');
-        alert('AI图片上传功能暂时不可用，请刷新页面重试');
-        return;
-      }
-      
-      console.log('找到AI图片上传元素，准备触发点击事件');
-      console.log('文件输入元素状态:', {
-        id: fileInput.id,
-        type: fileInput.type,
-        style: fileInput.style.cssText,
-        display: window.getComputedStyle(fileInput).display
-      });
-      
-      // 重置文件输入，允许重复选择同一文件
-      fileInput.value = '';
-      
-      // 确保文件输入元素是可见的（临时显示用于调试）
-      const originalDisplay = fileInput.style.display;
-      if (originalDisplay === 'none') {
-        fileInput.style.display = 'block';
-        fileInput.style.position = 'absolute';
-        fileInput.style.left = '-9999px';
-        fileInput.style.top = '-9999px';
-        console.log('临时显示文件输入元素用于调试');
-      }
-      
-      // 触发文件选择对话框
-      fileInput.click();
-      
-      // 恢复原始显示状态
-      if (originalDisplay === 'none') {
-        fileInput.style.display = originalDisplay;
-      }
-      
-      console.log('AI图片上传对话框已触发');
-    } catch (error) {
-      console.error('AI图片上传出错:', error);
-      alert('AI图片上传功能出错，请检查控制台日志');
-    }
-  }
-
-  previewImage() {
-    if (this._uploadedImage) {
-      // 在新窗口中预览图片
-      const url = URL.createObjectURL(this._uploadedImage);
-      window.open(url, '_blank');
-      URL.revokeObjectURL(url);
-    }
-  }
-
-  showImagePreview(file) {
-    try {
-      console.log('开始显示图片预览');
-      
-      // 显示图片信息标题
-      if (this._ctrlImageInfo) {
-        this._ctrlImageInfo.setVisibility(true);
-        console.log('图片信息控件已设置为可见');
-        
-        // 设置图片信息文本
-        const imageInfo = `文件名: ${file.name} | 大小: ${(file.size / 1024).toFixed(1)} KB | 类型: ${file.type}`;
-        this._ctrlImageInfo.setText(imageInfo);
-        console.log('图片信息已设置:', imageInfo);
-      }
-      
-      console.log('AI图片信息已显示');
-    } catch (error) {
-      console.error('显示图片预览时出错:', error);
-    }
-  }
-
-  hideImagePreview() {
-    if (this._ctrlImageInfo) {
-      this._ctrlImageInfo.setVisibility(false);
-    }
-  }
-
-  onImageUploaded(file) {
+  handleImageUpload(file) {
     if (!file || !file.type.startsWith('image/')) {
       alert(TR('aiInvalidImage'));
       return;
     }
     
     this._uploadedImage = file;
-    this._currentStep = 1;
+    this._currentStep = 'uploaded';
+    this.updateModalContent();
+    console.log('AI图片上传成功:', file.name);
+  }
+
+  renderUploadedStep(container) {
+    const content = document.createElement('div');
+    content.style.cssText = `
+      width: 100%;
+      text-align: center;
+    `;
     
-    // 显示图片预览
-    this.showImagePreview(file);
+    // 图片预览
+    const previewArea = document.createElement('div');
+    previewArea.style.cssText = `
+      width: 100%;
+      height: 250px;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 20px;
+      border: 2px solid #3498db;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #2c3e50;
+    `;
     
-    this.updateInterface();
-    this._ctrlStatus.setText(TR('aiStatusImageUploaded'));
+    // 显示图片
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = document.createElement('img');
+      img.src = e.target.result;
+      img.style.cssText = `
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+      `;
+      previewArea.appendChild(img);
+    };
+    reader.readAsDataURL(this._uploadedImage);
     
-    console.log('AI图片上传成功:', file.name, '大小:', (file.size / 1024).toFixed(1), 'KB');
-    console.log('当前步骤:', this._currentStep, '是否有图片:', !!this._uploadedImage);
+    // 图片信息
+    const info = document.createElement('div');
+    info.style.cssText = `
+      color: #bdc3c7;
+      font-size: 14px;
+      margin-bottom: 20px;
+    `;
+    info.textContent = `${this._uploadedImage.name} (${(this._uploadedImage.size / 1024).toFixed(1)} KB)`;
     
-    // 显示上传成功的提示
-    alert('图片上传成功！现在可以生成3D模型了。');
+    // 按钮区域
+    const buttonArea = document.createElement('div');
+    buttonArea.style.cssText = `
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      flex-wrap: wrap;
+    `;
+    
+    // 重新上传按钮
+    const reuploadBtn = document.createElement('button');
+    reuploadBtn.textContent = TR('aiReuploadImage');
+    reuploadBtn.style.cssText = `
+      padding: 12px 24px;
+      background: #7f8c8d;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: background 0.3s ease;
+    `;
+    reuploadBtn.onmouseover = () => reuploadBtn.style.background = '#95a5a6';
+    reuploadBtn.onmouseout = () => reuploadBtn.style.background = '#7f8c8d';
+    reuploadBtn.onclick = () => this.triggerFileUpload();
+    
+    // 生成模型按钮
+    const generateBtn = document.createElement('button');
+    generateBtn.textContent = TR('aiGenerateModel');
+    generateBtn.style.cssText = `
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #3498db, #2980b9);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    `;
+    generateBtn.onmouseover = () => generateBtn.style.transform = 'translateY(-2px)';
+    generateBtn.onmouseout = () => generateBtn.style.transform = 'translateY(0)';
+    generateBtn.onclick = () => this.generateModel();
+    
+    buttonArea.appendChild(reuploadBtn);
+    buttonArea.appendChild(generateBtn);
+    
+    content.appendChild(previewArea);
+    content.appendChild(info);
+    content.appendChild(buttonArea);
+    
+    container.appendChild(content);
+  }
+
+  renderGeneratingStep(container) {
+    const content = document.createElement('div');
+    content.style.cssText = `
+      width: 100%;
+      text-align: center;
+      padding: 40px 0;
+    `;
+    
+    // 加载动画
+    const loadingArea = document.createElement('div');
+    loadingArea.style.cssText = `
+      margin-bottom: 30px;
+    `;
+    
+    // 创建CSS动画
+    const spinner = document.createElement('div');
+    spinner.style.cssText = `
+      width: 60px;
+      height: 60px;
+      border: 4px solid rgba(52, 152, 219, 0.3);
+      border-top: 4px solid #3498db;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    `;
+    
+    // 添加CSS动画
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    `;
+    document.head.appendChild(style);
+    
+    const loadingText = document.createElement('div');
+    loadingText.style.cssText = `
+      color: #3498db;
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    `;
+    loadingText.textContent = TR('aiGeneratingText');
+    
+    const loadingSubtext = document.createElement('div');
+    loadingSubtext.style.cssText = `
+      color: #bdc3c7;
+      font-size: 14px;
+    `;
+    loadingSubtext.textContent = TR('aiGeneratingSubtext');
+    
+    loadingArea.appendChild(spinner);
+    loadingArea.appendChild(loadingText);
+    loadingArea.appendChild(loadingSubtext);
+    
+    // 进度条
+    const progressContainer = document.createElement('div');
+    progressContainer.style.cssText = `
+      width: 80%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+      margin: 0 auto;
+      overflow: hidden;
+    `;
+    
+    const progressBar = document.createElement('div');
+    progressBar.style.cssText = `
+      height: 100%;
+      background: linear-gradient(90deg, #3498db, #2980b9);
+      border-radius: 3px;
+      width: 0%;
+      animation: progress 3s ease-in-out infinite;
+    `;
+    
+    // 添加进度条动画
+    const progressStyle = document.createElement('style');
+    progressStyle.textContent = `
+      @keyframes progress {
+        0% { width: 0%; }
+        50% { width: 70%; }
+        100% { width: 100%; }
+      }
+    `;
+    document.head.appendChild(progressStyle);
+    
+    progressContainer.appendChild(progressBar);
+    
+    content.appendChild(loadingArea);
+    content.appendChild(progressContainer);
+    
+    container.appendChild(content);
+  }
+
+  renderCompletedStep(container) {
+    const content = document.createElement('div');
+    content.style.cssText = `
+      width: 100%;
+      text-align: center;
+      padding: 20px 0;
+    `;
+    
+    // 成功图标
+    const successIcon = document.createElement('div');
+    successIcon.style.cssText = `
+      font-size: 64px;
+      color: #27ae60;
+      margin-bottom: 20px;
+    `;
+    successIcon.textContent = '✅';
+    
+    // 成功消息
+    const successMessage = document.createElement('div');
+    successMessage.style.cssText = `
+      color: #27ae60;
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    `;
+    successMessage.textContent = TR('aiGenerationComplete');
+    
+    // 模型信息
+    const modelInfo = document.createElement('div');
+    modelInfo.style.cssText = `
+      color: #bdc3c7;
+      font-size: 14px;
+      margin-bottom: 30px;
+    `;
+    modelInfo.textContent = TR('aiModelReady');
+    
+    // 按钮区域
+    const buttonArea = document.createElement('div');
+    buttonArea.style.cssText = `
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      flex-wrap: wrap;
+    `;
+    
+    // 下载模型按钮
+    const downloadBtn = document.createElement('button');
+    downloadBtn.textContent = TR('aiDownloadModel');
+    downloadBtn.style.cssText = `
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #27ae60, #229954);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    `;
+    downloadBtn.onmouseover = () => downloadBtn.style.transform = 'translateY(-2px)';
+    downloadBtn.onmouseout = () => downloadBtn.style.transform = 'translateY(0)';
+    downloadBtn.onclick = () => this.downloadModel();
+    
+    // 重新生成按钮
+    const regenerateBtn = document.createElement('button');
+    regenerateBtn.textContent = TR('aiRegenerateModel');
+    regenerateBtn.style.cssText = `
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #3498db, #2980b9);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    `;
+    regenerateBtn.onmouseover = () => regenerateBtn.style.transform = 'translateY(-2px)';
+    regenerateBtn.onmouseout = () => regenerateBtn.style.transform = 'translateY(0)';
+    regenerateBtn.onclick = () => {
+      this._currentStep = 'uploaded';
+      this.updateModalContent();
+    };
+    
+    buttonArea.appendChild(downloadBtn);
+    buttonArea.appendChild(regenerateBtn);
+    
+    content.appendChild(successIcon);
+    content.appendChild(successMessage);
+    content.appendChild(modelInfo);
+    content.appendChild(buttonArea);
+    
+    container.appendChild(content);
+  }
+
+  renderErrorStep(container) {
+    const content = document.createElement('div');
+    content.style.cssText = `
+      width: 100%;
+      text-align: center;
+      padding: 40px 0;
+    `;
+    
+    // 错误图标
+    const errorIcon = document.createElement('div');
+    errorIcon.style.cssText = `
+      font-size: 64px;
+      color: #e74c3c;
+      margin-bottom: 20px;
+    `;
+    errorIcon.textContent = '❌';
+    
+    // 错误消息
+    const errorMessage = document.createElement('div');
+    errorMessage.style.cssText = `
+      color: #e74c3c;
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    `;
+    errorMessage.textContent = TR('aiGenerationError');
+    
+    // 错误描述
+    const errorDesc = document.createElement('div');
+    errorDesc.style.cssText = `
+      color: #bdc3c7;
+      font-size: 14px;
+      margin-bottom: 30px;
+    `;
+    errorDesc.textContent = TR('aiErrorDescription');
+    
+    // 按钮区域
+    const buttonArea = document.createElement('div');
+    buttonArea.style.cssText = `
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      flex-wrap: wrap;
+    `;
+    
+    // 重试按钮
+    const retryBtn = document.createElement('button');
+    retryBtn.textContent = TR('aiRetry');
+    retryBtn.style.cssText = `
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #e74c3c, #c0392b);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    `;
+    retryBtn.onmouseover = () => retryBtn.style.transform = 'translateY(-2px)';
+    retryBtn.onmouseout = () => retryBtn.style.transform = 'translateY(0)';
+    retryBtn.onclick = () => this.generateModel();
+    
+    // 返回上传按钮
+    const backBtn = document.createElement('button');
+    backBtn.textContent = TR('aiBackToUpload');
+    backBtn.style.cssText = `
+      padding: 12px 24px;
+      background: #7f8c8d;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: background 0.3s ease;
+    `;
+    backBtn.onmouseover = () => backBtn.style.background = '#95a5a6';
+    backBtn.onmouseout = () => backBtn.style.background = '#7f8c8d';
+    backBtn.onclick = () => {
+      this._currentStep = 'uploaded';
+      this.updateModalContent();
+    };
+    
+    buttonArea.appendChild(retryBtn);
+    buttonArea.appendChild(backBtn);
+    
+    content.appendChild(errorIcon);
+    content.appendChild(errorMessage);
+    content.appendChild(errorDesc);
+    content.appendChild(buttonArea);
+    
+    container.appendChild(content);
+  }
+
+  async generateModel() {
+    if (!this._uploadedImage) {
+      alert(TR('aiNoImageUploaded'));
+      return;
+    }
+    
+    this._currentStep = 'generating';
+    this._isProcessing = true;
+    this.updateModalContent();
+    
+    try {
+      // 创建FormData并添加图片
+      const formData = new FormData();
+      formData.append('image', this._uploadedImage);
+      
+      // TODO: 这里填入你的后端API接口地址
+      const response = await fetch('/api/generate-model', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (response.ok) {
+        // 获取生成的OBJ文件
+        const objData = await response.blob();
+        this._generatedModel = objData;
+        this._currentStep = 'completed';
+      } else {
+        throw new Error('Backend API failed');
+      }
+      
+    } catch (error) {
+      console.error('AI model generation error:', error);
+      this._currentStep = 'error';
+    } finally {
+      this._isProcessing = false;
+      this.updateModalContent();
+    }
   }
 
   async generateModel() {
@@ -284,65 +775,31 @@ class GuiAI {
     this._ctrlStatus.setText(TR('aiStatusDownloaded'));
   }
 
-  updateInterface() {
-    // 根据当前步骤显示/隐藏相关控件
-    const hasImage = !!this._uploadedImage;
-    const hasModel = !!this._generatedModel;
-    const isProcessing = this._isProcessing;
-    
-    console.log('更新界面 - 有图片:', hasImage, '有模型:', hasModel, '处理中:', isProcessing, '当前步骤:', this._currentStep);
-    
-    // 步骤1: 上传图片
-    this._ctrlImagePreview.setVisibility(hasImage);
-    this._ctrlUploadButton.setText(hasImage ? TR('aiReuploadImage') : TR('aiUploadImage'));
-    
-    // 图片信息控件
-    if (this._ctrlImageInfo) {
-      this._ctrlImageInfo.setVisibility(hasImage);
-      console.log('图片信息控件设置为:', hasImage ? '显示' : '隐藏');
+  // 清理资源
+  cleanup() {
+    if (this._modalOverlay) {
+      document.body.removeChild(this._modalOverlay);
+      this._modalOverlay = null;
+      this._modalContent = null;
     }
-    
-    // 步骤2: 生成模型
-    const shouldShowGenerate = hasImage && !isProcessing && !hasModel;
-    this._ctrlGenerateModel.setVisibility(shouldShowGenerate);
-    console.log('生成模型按钮设置为:', shouldShowGenerate ? '显示' : '隐藏');
-    this._ctrlProgress.setVisibility(isProcessing);
-    
-    // 步骤3: 下载模型
-    this._ctrlDownloadModel.setVisibility(hasModel && !isProcessing);
-    
-    // 添加调试信息
-    console.log('AI界面更新完成，当前步骤:', this._currentStep, '状态:', {
-      hasImage: hasImage,
-      hasModel: hasModel,
-      isProcessing: isProcessing,
-      uploadVisible: !hasImage && !isProcessing,
-      generateVisible: hasImage && !isProcessing && !hasModel,
-      downloadVisible: hasModel && !isProcessing
-    });
   }
 
-  showProgress(show) {
-    if (this._ctrlProgress) {
-      this._ctrlProgress.setVisibility(show);
-      if (show) {
-        this._ctrlProgress.setValue(0);
-        // 模拟进度条动画
-        var progress = 0;
-        var interval = setInterval(() => {
-          progress += Math.random() * 0.15;
-          if (progress >= 1) {
-            progress = 1;
-            clearInterval(interval);
-          }
-          this._ctrlProgress.setValue(progress);
-        }, 300);
-      }
+  updateMesh() {
+    // AI建模菜单始终可见，不需要依赖网格
+    if (this._menu) {
+      this._menu.setVisibility(true);
+    }
+  }
+
+  removeEvents() {
+    // 清理事件监听
+    if (this._modalOverlay) {
+      this._modalOverlay.onclick = null;
     }
   }
 
   createMockOBJFile() {
-    // 创建一个简单的OBJ文件作为模拟
+    // 创建一个简单的OBJ文件作为模拟（用于测试）
     const objContent = `# Simple Cube OBJ File
 # Generated by SculptGL AI Module (Demo Mode)
 
