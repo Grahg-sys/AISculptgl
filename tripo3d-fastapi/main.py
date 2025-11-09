@@ -27,6 +27,8 @@ from typing import Optional, Literal
 from enum import Enum
 import base64
 from datetime import datetime
+import tempfile
+import shutil
 
 # ==================== 配置加载 ====================
 # 👉 简化版：直接使用环境变量
@@ -226,6 +228,8 @@ class Tripo3DClient:
                         "status": data.get("status", "unknown"),
                         "progress": data.get("progress", 0),
                         "output": data.get("output", {}),
+                        "model_url": data.get("output", {}).get("pbr_model") or data.get("output", {}).get("model"),
+                        "preview_url": data.get("output", {}).get("preview"),
                         "error_message": data.get("error")
                     }
                 else:
@@ -243,20 +247,46 @@ class Tripo3DClient:
     
     async def download_model(self, model_url: str, save_path: str):
         """下载3D模型"""
-        async with httpx.AsyncClient(timeout=300.0) as client:
-            response = await client.get(model_url)
-            
-            if response.status_code != 200:
-                raise HTTPException(
-                    status_code=response.status_code,
-                    detail="模型下载失败"
-                )
-            
-            with open(save_path, 'wb') as f:
-                f.write(response.content)
+        try:
+            async with httpx.AsyncClient(timeout=300.0) as client:
+                print(f"📥 开始下载模型: {model_url}")
+                response = await client.get(model_url)
+                
+                if response.status_code != 200:
+                    print(f"❌ 模型下载失败，状态码: {response.status_code}")
+                    raise HTTPException(
+                        status_code=response.status_code,
+                        detail=f"模型下载失败，状态码: {response.status_code}"
+                    )
+                
+                print(f"📊 模型大小: {len(response.content)} bytes")
+                
+                with open(save_path, 'wb') as f:
+                    f.write(response.content)
+                
+                print(f"✅ 模型已保存到: {save_path}")
+                
+        except Exception as e:
+            print(f"❌ 下载模型异常: {e}")
+            raise
 
 # 初始化客户端
 tripo_client = Tripo3DClient(TRIPO3D_API_KEY)
+
+# 临时文件清理函数
+def cleanup_temp_file(file_path: str):
+    """清理临时文件"""
+    try:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            print(f"🗑️  已清理临时文件: {file_path}")
+    except Exception as e:
+        print(f"⚠️  清理临时文件失败: {e}")
+
+# 确保temp目录存在
+temp_dir = "./temp"
+os.makedirs(temp_dir, exist_ok=True)
+print(f"📁 临时目录已准备: {temp_dir}")
 
 # ==================== API 路由 ====================
 
@@ -457,8 +487,8 @@ async def get_task_status(task_id: str):
         print(f"❌ 错误: {str(e)}")
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
 
-@app.get("/api/v1/download/{task_id}", tags=["模型下载"])
-async def download_model(task_id: str):
+@app.get("/api/v1/download/{task_id}", response_class=FileResponse, tags=["模型下载"])
+async def download_model(task_id: str, background_tasks: BackgroundTasks):
     """
     下载3D模型文件
     
@@ -477,24 +507,30 @@ async def download_model(task_id: str):
         # 获取任务状态
         task = await tripo_client.get_task_status(task_id)
         
-        if task.get("status") != "success":
+        if (task.get("status") != "success"):
             raise HTTPException(
                 status_code=400,
                 detail=f"任务尚未完成，当前状态: {task.get('status')}"
             )
         
-        model_url = task.get("output", {}).get("model")
+        # 优先使用 pbr_model，回退到 model
+        model_url = task.get("output", {}).get("pbr_model") or task.get("output", {}).get("model")
         if not model_url:
+            print(f"⚠️ 未找到模型URL，任务状态: {json.dumps(task, indent=2)}")
             raise HTTPException(status_code=404, detail="模型URL不可用")
         
-        # 下载模型
-        save_path = f"./temp/{task_id}.glb"
-        print(f"📥 下载模型: {model_url}")
-        await tripo_client.download_model(model_url, save_path)
-        print(f"✅ 模型已保存: {save_path}")
+        print(f"📥 下载模型URL: {model_url}")
+        
+        # 下载模型到临时文件
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.glb')
+        await tripo_client.download_model(model_url, temp_file.name)
+        print(f"✅ 模型已保存到临时文件: {temp_file.name}")
+        
+        # 添加后台任务清理临时文件
+        background_tasks.add_task(cleanup_temp_file, temp_file.name)
         
         return FileResponse(
-            save_path,
+            temp_file.name,
             media_type="model/gltf-binary",
             filename=f"{task_id}.glb"
         )
@@ -502,7 +538,7 @@ async def download_model(task_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ 错误: {str(e)}")
+        print(f"❌ 下载模型失败: {e}")
         raise HTTPException(status_code=500, detail=f"下载失败: {str(e)}")
 
 @app.get("/health", tags=["健康检查"])

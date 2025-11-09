@@ -925,12 +925,18 @@ class GuiAI {
         
         taskStatus = await statusResponse.json();
         console.log(`📊 任务状态: ${taskStatus.status}, 进度: ${taskStatus.progress}%`);
+        console.log(`📊 完整状态数据:`, taskStatus);
         
         // 更新UI显示进度
         this.updateProgress(taskStatus.progress);
         
         if (taskStatus.status === 'success') {
           console.log('✅ 任务完成！');
+          // 确保有模型URL可用
+          if (!taskStatus.model_url && taskStatus.output) {
+            taskStatus.model_url = taskStatus.output.pbr_model || taskStatus.output.model;
+            console.log(`📊 提取的模型URL: ${taskStatus.model_url}`);
+          }
           break;
         } else if (taskStatus.status === 'failed') {
           throw new Error(`任务失败: ${taskStatus.error_message || '未知错误'}`);
@@ -944,20 +950,58 @@ class GuiAI {
       }
       
       // 步骤3: 下载模型
-      if (taskStatus.model_url) {
-        console.log('📥 下载3D模型...');
-        const downloadResponse = await fetch(`${this._config.apiBaseUrl}/api/v1/download/${taskId}`);
-        
-        if (!downloadResponse.ok) {
-          throw new Error(`模型下载失败: ${downloadResponse.statusText}`);
+      let modelData;
+      
+      // 首先尝试从任务状态中获取模型URL
+      let modelUrl = taskStatus.model_url;
+      if (!modelUrl && taskStatus.output) {
+        modelUrl = taskStatus.output.pbr_model || taskStatus.output.model;
+      }
+      
+      if (modelUrl) {
+        console.log(`📥 使用任务状态中的模型URL: ${modelUrl}`);
+        try {
+          const modelResponse = await fetch(modelUrl);
+          if (modelResponse.ok) {
+            modelData = await modelResponse.blob();
+          } else {
+            console.log(`⚠️ 直接下载模型URL失败，状态码: ${modelResponse.status}`);
+          }
+        } catch (urlError) {
+          console.warn('⚠️ 直接下载模型URL异常:', urlError);
         }
+      }
+      
+      // 如果直接下载失败，尝试通过后端API下载
+      if (!modelData) {
+        const downloadUrl = `${this._config.apiBaseUrl}/api/v1/download/${taskId}`;
+        console.log(`📥 尝试通过后端API下载: ${downloadUrl}`);
         
-        const modelBlob = await downloadResponse.blob();
-        this._generatedModel = modelBlob;
+        try {
+          const downloadResponse = await fetch(downloadUrl);
+          
+          if (!downloadResponse.ok) {
+            throw new Error(`无法获取模型下载链接，状态码: ${downloadResponse.status}`);
+          }
+          
+          modelData = await downloadResponse.blob();
+          
+          if (modelData.size === 0) {
+            throw new Error('模型数据为空');
+          }
+        } catch (downloadError) {
+          console.warn('⚠️ 通过API下载失败:', downloadError);
+        }
+      }
+      
+      if (modelData) {
+        console.log(`✅ 模型下载成功，大小: ${modelData.size} bytes`);
+        this._generatedModel = modelData;
         this._currentStep = 'completed';
-        console.log('✅ 模型下载完成！');
       } else {
-        throw new Error('无法获取模型下载链接');
+        console.warn('⚠️ 无法获取模型下载链接，但任务已成功完成');
+        // 任务成功但没有下载链接，仍然显示成功状态
+        this._currentStep = 'completed';
       }
       
     } catch (error) {
