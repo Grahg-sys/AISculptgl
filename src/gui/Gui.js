@@ -9,7 +9,8 @@ import GuiTopology from 'gui/GuiTopology';
 import GuiRendering from 'gui/GuiRendering';
 import GuiScene from 'gui/GuiScene';
 import GuiSculpting from 'gui/GuiSculpting';
-import GuiStates from 'gui/GuiStates';
+// 隐藏记录菜单 - 注释掉GuiStates导入
+// import GuiStates from 'gui/GuiStates';
 import GuiTablet from 'gui/GuiTablet';
 import GuiAI from 'gui/GuiAI';
 import ShaderContour from 'render/shaders/ShaderContour';
@@ -28,7 +29,8 @@ class Gui {
     this._ctrlTablet = null;
     this._ctrlFiles = null;
     this._ctrlScene = null;
-    this._ctrlStates = null;
+    // 隐藏记录菜单 - 注释掉_states控制器
+    // this._ctrlStates = null;
     this._ctrlCamera = null;
     this._ctrlBackground = null;
 
@@ -60,7 +62,6 @@ class Gui {
     ctrls[idc++] = this._ctrlFiles = new GuiFiles(this._topbar, this);
     // this.initPrint(this._topbar);
     ctrls[idc++] = this._ctrlScene = new GuiScene(this._topbar, this);
-    ctrls[idc++] = this._ctrlStates = new GuiStates(this._topbar, this);
     // 隐藏记录菜单
     // ctrls[idc++] = this._ctrlStates = new GuiStates(this._topbar, this);
     // 隐藏背景菜单
@@ -74,8 +75,10 @@ class Gui {
 
     // Initialize the sidebar
     this._sidebar = this._guiMain.addRightSidebar();
-    ctrls[idc++] = this._ctrlRendering = new GuiRendering(this._sidebar, this);
-    ctrls[idc++] = this._ctrlTopology = new GuiTopology(this._sidebar, this);
+    // 隐藏图形绘制模块
+    // ctrls[idc++] = this._ctrlRendering = new GuiRendering(this._sidebar, this);
+    // 隐藏网面结构(拓扑)模块
+    // ctrls[idc++] = this._ctrlTopology = new GuiTopology(this._sidebar, this);
     ctrls[idc++] = this._ctrlSculpting = new GuiSculpting(this._sidebar, this);
 
     // gui extra
@@ -177,8 +180,9 @@ class Gui {
   }
 
   updateMesh() {
-    this._ctrlRendering.updateMesh();
-    this._ctrlTopology.updateMesh();
+    // 隐藏图形绘制和网面结构模块后，注释掉相关更新
+    // this._ctrlRendering.updateMesh();
+    // this._ctrlTopology.updateMesh();
     this._ctrlSculpting.updateMesh();
     this._ctrlScene.updateMesh();
     this._ctrlAI.updateMesh();
@@ -202,7 +206,8 @@ class Gui {
   }
 
   addAlphaOptions(opts) {
-    this._ctrlSculpting.addAlphaOptions(opts);
+    // 隐藏透明色版(Alpha)功能后，注释掉相关选项添加
+    // this._ctrlSculpting.addAlphaOptions(opts);
   }
 
   deleteGui() {

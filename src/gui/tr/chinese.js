@@ -42,7 +42,7 @@ var TR = {
   fileExportMetalness: null,
 
   // scene
-  sceneTitle: '场景',
+  sceneTitle: '几何体建模',
   sceneReset: '清除场景',
   sceneResetConfirm: '确认清除场景',
   sceneAddSphere: '加入球体',
@@ -94,7 +94,7 @@ var TR = {
   dynamicLinear: '线性细分',
 
   // sculpt
-  sculptTitle: '雕刻和涂绘',
+  sculptTitle: '模型调整与色彩绘制',
   sculptBrush: '笔刷',
   sculptInflate: '膨胀',
   sculptTwist: '扭转',
@@ -154,7 +154,7 @@ var TR = {
   pressureIntensity: '强度感压',
 
   // rendering
-  renderingTitle: '图形绘算',
+  renderingTitle: '图形绘制',
   renderingGrid: '显示格线',
   renderingSymmetryLine: '显示镜像线',
   renderingMatcap: '材质捕捉 (Matcap)',
@@ -176,7 +176,7 @@ var TR = {
   renderingFilmic: '电影色调对应',
 
   // ai modeling
-  aiTitle: 'AI建模',
+  aiTitle: '3D模型AI生成',
   aiModelTitle: 'AI模型',
   aiModelType: '模型类型',
   aiModelTextToMesh: '文本生成网格',

@@ -90,7 +90,8 @@ GuiTools[Enums.Tools.BRUSH] = {
     this._ctrls.push(fold.addCheckbox(TR('sculptClay'), tool, '_clay'));
     this._ctrls.push(fold.addCheckbox(TR('sculptAccumulate'), tool, '_accumulate'));
     this._ctrls.push(addCtrlCulling(tool, fold));
-    addCtrlAlpha(this._ctrls, fold, tool, this);
+    // 隐藏透明色版(Alpha)功能
+    // addCtrlAlpha(this._ctrls, fold, tool, this);
   }
 };
 
@@ -101,7 +102,8 @@ GuiTools[Enums.Tools.CREASE] = {
     this._ctrls.push(addCtrlIntensity(tool, fold, this));
     this._ctrls.push(addCtrlNegative(tool, fold, this));
     this._ctrls.push(addCtrlCulling(tool, fold));
-    addCtrlAlpha(this._ctrls, fold, tool, this);
+    // 隐藏透明色版(Alpha)功能
+    // addCtrlAlpha(this._ctrls, fold, tool, this);
   }
 };
 
@@ -109,7 +111,8 @@ GuiTools[Enums.Tools.DRAG] = {
   _ctrls: [],
   init: function (tool, fold, main) {
     this._ctrls.push(addCtrlRadius(tool, fold, this, main));
-    addCtrlAlpha(this._ctrls, fold, tool, this);
+    // 隐藏透明色版(Alpha)功能
+    // addCtrlAlpha(this._ctrls, fold, tool, this);
   }
 };
 
@@ -120,7 +123,8 @@ GuiTools[Enums.Tools.FLATTEN] = {
     this._ctrls.push(addCtrlIntensity(tool, fold, this));
     this._ctrls.push(addCtrlNegative(tool, fold, this));
     this._ctrls.push(addCtrlCulling(tool, fold));
-    addCtrlAlpha(this._ctrls, fold, tool, this);
+    // 隐藏透明色版(Alpha)功能
+    // addCtrlAlpha(this._ctrls, fold, tool, this);
   }
 };
 
@@ -131,7 +135,8 @@ GuiTools[Enums.Tools.INFLATE] = {
     this._ctrls.push(addCtrlIntensity(tool, fold, this));
     this._ctrls.push(addCtrlNegative(tool, fold, this));
     this._ctrls.push(addCtrlCulling(tool, fold));
-    addCtrlAlpha(this._ctrls, fold, tool, this);
+    // 隐藏透明色版(Alpha)功能
+    // addCtrlAlpha(this._ctrls, fold, tool, this);
   }
 };
 
@@ -206,7 +211,8 @@ GuiTools[Enums.Tools.PAINT] = {
     window.addEventListener('keyup', this.resetMaterialOverride.bind(this, main, tool));
     window.addEventListener('mouseup', this.resetMaterialOverride.bind(this, main, tool));
 
-    addCtrlAlpha(this._ctrls, fold, tool, this);
+    // 隐藏透明色版(Alpha)功能
+    // addCtrlAlpha(this._ctrls, fold, tool, this);
   }
 };
 
@@ -217,7 +223,8 @@ GuiTools[Enums.Tools.PINCH] = {
     this._ctrls.push(addCtrlIntensity(tool, fold, this));
     this._ctrls.push(addCtrlNegative(tool, fold, this));
     this._ctrls.push(addCtrlCulling(tool, fold));
-    addCtrlAlpha(this._ctrls, fold, tool, this);
+    // 隐藏透明色版(Alpha)功能
+    // addCtrlAlpha(this._ctrls, fold, tool, this);
   }
 };
 
@@ -226,7 +233,8 @@ GuiTools[Enums.Tools.TWIST] = {
   init: function (tool, fold, main) {
     this._ctrls.push(addCtrlRadius(tool, fold, this, main));
     this._ctrls.push(addCtrlCulling(tool, fold));
-    addCtrlAlpha(this._ctrls, fold, tool, this);
+    // 隐藏透明色版(Alpha)功能
+    // addCtrlAlpha(this._ctrls, fold, tool, this);
   }
 };
 
@@ -235,7 +243,8 @@ GuiTools[Enums.Tools.LOCALSCALE] = {
   init: function (tool, fold, main) {
     this._ctrls.push(addCtrlRadius(tool, fold, this, main));
     this._ctrls.push(addCtrlCulling(tool, fold));
-    addCtrlAlpha(this._ctrls, fold, tool, this);
+    // 隐藏透明色版(Alpha)功能
+    // addCtrlAlpha(this._ctrls, fold, tool, this);
   }
 };
 
@@ -257,7 +266,8 @@ GuiTools[Enums.Tools.SMOOTH] = {
     this._ctrls.push(addCtrlIntensity(tool, fold, this));
     this._ctrls.push(fold.addCheckbox(TR('sculptTangentialSmoothing'), tool, '_tangent'));
     this._ctrls.push(addCtrlCulling(tool, fold));
-    addCtrlAlpha(this._ctrls, fold, tool, this);
+    // 隐藏透明色版(Alpha)功能
+    // addCtrlAlpha(this._ctrls, fold, tool, this);
   }
 };
 
@@ -267,6 +277,7 @@ GuiTools[Enums.Tools.MASKING] = {
     this._ctrls.push(addCtrlRadius(tool, fold, this, main));
     this._ctrls.push(addCtrlIntensity(tool, fold, this));
     this._ctrls.push(addCtrlHardness(tool, fold, this));
+    // 隐藏透明色版(Alpha)功能 - MASKING工具中没有Alpha功能，所以不需要修改
     this._ctrls.push(addCtrlNegative(tool, fold, this));
     this._ctrls.push(addCtrlCulling(tool, fold));
     this._main = main;
